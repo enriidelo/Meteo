@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meteo">
+<title>Meteo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: rgba(255,255,255,0.07);
+    --text: #f0f4ff;
+    --muted: #6b7fa3;
+    --accent: #4f9cf9;
+    --accent2: #7dd3fc;
+    --rain: #60a5fa;
+    --sun: #fbbf24;
+    --wind: #a78bfa;
+    --uv: #fb923c;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,15,30,0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .app-title { font-size: 17px; font-weight: 500; letter-spacing: -0.3px; }
+  .update-time { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .refresh-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    padding: 6px; border-radius: 8px; transition: color 0.2s;
+    font-size: 18px; line-height: 1;
+  }
+  .refresh-btn:active { color: var(--accent); }
+
+  .loc-tabs {
+    display: flex; gap: 6px; overflow-x: auto;
+    scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .loc-tabs::-webkit-scrollbar { display: none; }
+  .loc-tab {
+    flex-shrink: 0;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted); font-size: 13px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .loc-tab.active {
+    background: var(--accent); color: #fff;
+    border-color: var(--accent); font-weight: 500;
+  }
+
+  .main { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  .hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px; padding: 20px;
+    position: relative; overflow: hidden;
+  }
+  .hero-card::before {
+    content: ''; position: absolute;
+    top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(79,156,249,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .hero-loc { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .hero-temp { font-size: 58px; font-weight: 300; letter-spacing: -3px; line-height: 1; }
+  .hero-temp span { font-size: 24px; font-weight: 300; color: var(--muted); }
+  .hero-icon { font-size: 52px; line-height: 1; }
+  .hero-desc { font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .hero-minmax { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .hero-minmax b { color: var(--text); }
+  .hero-badge {
+    display: inline-block; font-size: 10px; padding: 2px 8px;
+    border-radius: 10px; margin-top: 6px;
+    background: rgba(79,156,249,0.15); color: var(--accent2);
+    font-family: 'DM Mono', monospace; letter-spacing: 0.5px;
+  }
+
+  .day-section { }
+  .section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .day-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .day-scroll::-webkit-scrollbar { display: none; }
+  .day-pill {
+    flex-shrink: 0; min-width: 64px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 10px 8px;
+    text-align: center; cursor: pointer; transition: all 0.2s;
+  }
+  .day-pill.active { background: var(--surface2); border-color: var(--accent); }
+  .day-pill.today-pill .day-name { color: var(--accent2); }
+  .day-name { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .day-icon { font-size: 20px; margin-bottom: 4px; }
+  .day-temp-range { font-size: 12px; }
+  .day-temp-range .tmax { font-weight: 500; }
+  .day-temp-range .tmin { color: var(--muted); }
+  .day-rain-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .day-rain-fill { height: 100%; background: var(--rain); border-radius: 2px; transition: width 0.4s; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .stat-label .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .stat-value { font-size: 24px; font-weight: 400; letter-spacing: -0.5px; }
+  .stat-unit { font-size: 13px; color: var(--muted); margin-left: 2px; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .stat-badge {
+    font-size: 10px; color: var(--accent2); font-family: 'DM Mono', monospace;
+    opacity: 0.7; display: block; margin-top: 2px;
+  }
+
+  .uv-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .uv-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+  /* CHART TABS */
+  .chart-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .chart-tab {
+    padding: 4px 12px; border-radius: 12px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-size: 12px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .chart-tab.active { border-color: var(--accent); color: var(--accent2); background: rgba(79,156,249,0.1); }
+
+  .chart-wrap { overflow-x: auto; scrollbar-width: none; }
+  .chart-wrap::-webkit-scrollbar { display: none; }
+
+  .footer { text-align: center; padding: 12px 16px 28px; color: var(--muted); font-size: 11px; }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999; transition: opacity 0.4s;
+  }
+  .loading-overlay.hide { opacity: 0; pointer-events: none; }
+  .loader-ring {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  .loader-text { margin-top: 12px; font-size: 13px; color: var(--muted); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 12px; padding: 14px; text-align: center;
+    color: var(--danger); font-size: 13px; display: none;
+  }
+  .error-msg.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Caricamento meteo…</div>
+</div>
+
+<div class="header">
+  <div class="header-top">
+    <div class="app-title">☁️ Meteo</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="update-time" id="updateTime">—</div>
+      <button class="refresh-btn" onclick="refreshAll()" title="Aggiorna">↻</button>
+    </div>
+  </div>
+  <div class="loc-tabs" id="locTabs"></div>
+</div>
+
+<div class="main">
+  <div class="error-msg" id="errorMsg">Errore nel caricamento. Controlla la connessione.</div>
+
+  <div class="hero-card" id="heroCard">
+    <div class="hero-top">
+      <div>
+        <div class="hero-loc" id="heroLoc">—</div>
+        <div class="hero-temp" id="heroTemp">—<span>°C</span></div>
+        <div class="hero-desc" id="heroDesc">—</div>
+        <div class="hero-minmax" id="heroMinMax">—</div>
+        <div class="hero-badge" id="heroBadge"></div>
+      </div>
+      <div class="hero-icon" id="heroIcon">⏳</div>
+    </div>
+  </div>
+
+  <div class="day-section">
+    <div class="section-label">Seleziona giorno</div>
+    <div class="day-scroll" id="dayScroll"></div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot" style="background:var(--rain)"></span>Precipitazioni</div>
+      <div><span class="stat-value" id="statRain">—</span><span class="stat-unit" id="statRainUnit">mm</span></div>
+      <div class="stat-sub" id="statRainSub">—</div>
+      <span class="stat-badge" id="statRainBadge"></span>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot" style="background:var(--wind)"></span>Vento</div>
+      <div><span class="stat-value" id="statWind">—</span><span class="stat-unit">km/h</span></div>
+      <div class="stat-sub" id="statWindDir">—</div>
+      <span class="stat-badge" id="statWindBadge"></span>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot" style="background:var(--uv)"></span>Indice UV</div>
+      <div><span class="stat-value" id="statUV">—</span></div>
+      <div class="uv-bar-wrap"><div class="uv-bar-fill" id="uvBarFill" style="width:0%"></div></div>
+      <div class="stat-sub" id="statUVLabel">—</div>
+      <span class="stat-badge" id="statUVBadge"></span>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label"><span class="dot" style="background:var(--sun)"></span>Umidità</div>
+      <div><span class="stat-value" id="statHum">—</span><span class="stat-unit">%</span></div>
+      <div class="stat-sub" id="statHumLabel">—</div>
+      <span class="stat-badge" id="statHumBadge"></span>
+    </div>
+  </div>
+
+  <div class="hourly-section">
+    <div class="section-label" id="chartLabel">Andamento orario</div>
+    <div class="chart-tabs" id="chartTabs">
+      <button class="chart-tab active" data-metric="temp" onclick="switchChart('temp',this)">🌡️ Temp</button>
+      <button class="chart-tab" data-metric="rain" onclick="switchChart('rain',this)">🌧️ Pioggia</button>
+      <button class="chart-tab" data-metric="wind" onclick="switchChart('wind',this)">💨 Vento</button>
+      <button class="chart-tab" data-metric="uv" onclick="switchChart('uv',this)">☀️ UV</button>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="hourlyChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="footer">Dati: Open-Meteo · Aggiornamento ogni 30 min</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const LOCATIONS = [
+  { name: "Campodoro",   lat: 45.4333, lon: 11.7167 },
+  { name: "Padova",      lat: 45.4064, lon: 11.8768 },
+  { name: "Vicenza",     lat: 45.5455, lon: 11.5354 },
+  { name: "Sottomarina", lat: 45.2167, lon: 12.3000 }
+];
+
+const WMO = {
+  0:"Sereno",1:"Prevalentemente sereno",2:"Parzialmente nuvoloso",3:"Nuvoloso",
+  45:"Nebbia",48:"Nebbia con brina",51:"Pioggia leggera",53:"Pioggia moderata",
+  55:"Pioggia intensa",61:"Pioggerella",63:"Pioggia",65:"Pioggia forte",
+  71:"Neve leggera",73:"Neve",75:"Neve intensa",77:"Granelli di neve",
+  80:"Rovesci leggeri",81:"Rovesci",82:"Rovesci forti",85:"Rovesci di neve",
+  86:"Forti rovesci di neve",95:"Temporale",96:"Temporale con grandine",
+  99:"Temporale forte con grandine"
+};
+const WMO_ICON = {
+  0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌧️",55:"🌧️",
+  61:"🌦️",63:"🌧️",65:"🌧️",71:"🌨️",73:"❄️",75:"❄️",77:"🌨️",
+  80:"🌦️",81:"🌧️",82:"⛈️",85:"🌨️",86:"❄️",95:"⛈️",96:"⛈️",99:"⛈️"
+};
+const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+
+let currentLoc = 0;
+let currentDay = 0;
+let currentMetric = 'temp';
+let weatherCache = {};
+let hourlyChart = null;
+
+function windDir(deg) { return WIND_DIRS[Math.round((deg || 0) / 22.5) % 16]; }
+function uvLabel(uv) {
+  if (uv <= 2) return { text: "Basso", color: "var(--good)" };
+  if (uv <= 5) return { text: "Moderato", color: "var(--warn)" };
+  if (uv <= 7) return { text: "Alto", color: "var(--uv)" };
+  if (uv <= 10) return { text: "Molto alto", color: "var(--danger)" };
+  return { text: "Estremo", color: "#e879f9" };
+}
+function humLabel(h) {
+  if (h < 30) return "Molto secco";
+  if (h < 50) return "Secco";
+  if (h < 70) return "Nella norma";
+  if (h < 85) return "Umido";
+  return "Molto umido";
+}
+function nowTime() {
+  return new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+function dayLabel(dateStr, idx) {
+  if (idx === 0) return "Oggi";
+  if (idx === 1) return "Dom.";
+  const names = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+  return names[new Date(dateStr).getDay()];
+}
+
+// Trova l'indice orario corrispondente all'ora attuale per oggi
+function getCurrentHourIndex(d) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const currentHourStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:00`;
+  const idx = d.hourly.time.indexOf(currentHourStr);
+  return idx >= 0 ? idx : null;
+}
+
+// Restituisce indici orari per un dato giorno
+function getHourIndicesForDay(d, dayIdx) {
+  const dateStr = d.daily.time[dayIdx];
+  return d.hourly.time.map((t,i) => t.startsWith(dateStr) ? i : -1).filter(i => i >= 0);
+}
+
+async function fetchWeather(loc) {
+  const { lat, lon } = loc;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+    + `&hourly=temperature_2m,precipitation,windspeed_10m,uv_index,relativehumidity_2m,weathercode,winddirection_10m`
+    + `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,uv_index_max,precipitation_probability_max,winddirection_10m_dominant`
+    + `&current_weather=true&timezone=Europe%2FRome&forecast_days=7`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('API error');
+  return res.json();
+}
+
+async function loadLocation(idx) {
+  if (weatherCache[idx]) { renderAll(idx); return; }
+  showLoading(true);
+  hideError();
+  try {
+    const data = await fetchWeather(LOCATIONS[idx]);
+    weatherCache[idx] = data;
+    renderAll(idx);
+  } catch(e) {
+    showError();
+  } finally {
+    showLoading(false);
+  }
+}
+
+function renderAll(locIdx) {
+  const d = weatherCache[locIdx];
+  if (!d) return;
+  document.getElementById('updateTime').textContent = nowTime();
+  renderDayTabs(d);
+  renderHero(locIdx, d, currentDay);
+  renderStats(d, currentDay);
+  renderChart(d, currentDay, currentMetric);
+}
+
+function renderDayTabs(d) {
+  const container = document.getElementById('dayScroll');
+  container.innerHTML = '';
+  d.daily.time.forEach((date, i) => {
+    if (i >= 7) return;
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (i === currentDay ? ' active' : '') + (i === 0 ? ' today-pill' : '');
+    const code = d.daily.weathercode[i];
+    const tmax = Math.round(d.daily.temperature_2m_max[i]);
+    const tmin = Math.round(d.daily.temperature_2m_min[i]);
+    const rain = d.daily.precipitation_sum[i] || 0;
+    pill.innerHTML = `
+      <div class="day-name">${dayLabel(date, i)}</div>
+      <div class="day-icon">${WMO_ICON[code] || '🌡️'}</div>
+      <div class="day-temp-range"><span class="tmax">${tmax}°</span> <span class="tmin">${tmin}°</span></div>
+      <div class="day-rain-bar"><div class="day-rain-fill" style="width:${Math.min(100,rain*10)}%"></div></div>`;
+    pill.onclick = () => { currentDay = i; renderAll(currentLoc); };
+    container.appendChild(pill);
+  });
+}
+
+function renderHero(locIdx, d, dayIdx) {
+  const loc = LOCATIONS[locIdx];
+  const isToday = dayIdx === 0;
+  let temp, code, badge;
+
+  if (isToday) {
+    temp = Math.round(d.current_weather.temperature);
+    code = d.current_weather.weathercode;
+    badge = 'LIVE — ora ' + nowTime();
+  } else {
+    // Per i giorni futuri: media tra max e min
+    temp = Math.round((d.daily.temperature_2m_max[dayIdx] + d.daily.temperature_2m_min[dayIdx]) / 2);
+    code = d.daily.weathercode[dayIdx];
+    badge = 'PREVISIONE';
+  }
+
+  const tmax = Math.round(d.daily.temperature_2m_max[dayIdx]);
+  const tmin = Math.round(d.daily.temperature_2m_min[dayIdx]);
+
+  document.getElementById('heroLoc').textContent = loc.name.toUpperCase();
+  document.getElementById('heroTemp').innerHTML = `${temp}<span>°C</span>`;
+  document.getElementById('heroDesc').textContent = WMO[code] || 'N/D';
+  document.getElementById('heroMinMax').innerHTML = `<b>${tmax}°</b> max · <b>${tmin}°</b> min`;
+  document.getElementById('heroIcon').textContent = WMO_ICON[code] || '🌡️';
+  document.getElementById('heroBadge').textContent = badge;
+}
+
+function renderStats(d, dayIdx) {
+  const isToday = dayIdx === 0;
+
+  if (isToday) {
+    // Valori dell'ora attuale
+    const hIdx = getCurrentHourIndex(d);
+    if (hIdx !== null) {
+      const rain = (d.hourly.precipitation[hIdx] || 0).toFixed(1);
+      const wind = Math.round(d.hourly.windspeed_10m[hIdx]);
+      const windDeg = d.hourly.winddirection_10m[hIdx];
+      const uv = Math.round(d.hourly.uv_index[hIdx]);
+      const hum = Math.round(d.hourly.relativehumidity_2m[hIdx]);
+
+      document.getElementById('statRain').textContent = rain;
+      document.getElementById('statRainUnit').textContent = 'mm';
+      document.getElementById('statRainSub').textContent = `Nell'ultima ora`;
+      document.getElementById('statRainBadge').textContent = 'ora attuale';
+
+      document.getElementById('statWind').textContent = wind;
+      document.getElementById('statWindDir').textContent = `Direzione ${windDir(windDeg)}`;
+      document.getElementById('statWindBadge').textContent = 'ora attuale';
+
+      const uvInfo = uvLabel(uv);
+      document.getElementById('statUV').textContent = uv;
+      document.getElementById('uvBarFill').style.width = Math.min(100, uv * 9) + '%';
+      document.getElementById('uvBarFill').style.background = uvInfo.color;
+      document.getElementById('statUVLabel').textContent = uvInfo.text;
+      document.getElementById('statUVBadge').textContent = 'ora attuale';
+
+      document.getElementById('statHum').textContent = hum;
+      document.getElementById('statHumLabel').textContent = humLabel(hum);
+      document.getElementById('statHumBadge').textContent = 'ora attuale';
+    }
+  } else {
+    // Giorni futuri: valori massimi / medi della giornata prevista
+    const rain = (d.daily.precipitation_sum[dayIdx] || 0).toFixed(1);
+    const rainProb = d.daily.precipitation_probability_max[dayIdx] || 0;
+    const wind = Math.round(d.daily.windspeed_10m_max[dayIdx]);
+    const windDeg = d.daily.winddirection_10m_dominant[dayIdx];
+    const uv = Math.round(d.daily.uv_index_max[dayIdx]);
+
+    const indices = getHourIndicesForDay(d, dayIdx);
+    const humVals = indices.map(i => d.hourly.relativehumidity_2m[i]).filter(v => v != null);
+    const hum = humVals.length ? Math.round(humVals.reduce((a,b)=>a+b,0)/humVals.length) : 0;
+
+    document.getElementById('statRain').textContent = rain;
+    document.getElementById('statRainUnit').textContent = 'mm';
+    document.getElementById('statRainSub').textContent = `Prob. ${rainProb}%`;
+    document.getElementById('statRainBadge').textContent = 'totale giornata';
+
+    document.getElementById('statWind').textContent = wind;
+    document.getElementById('statWindDir').textContent = `Direzione ${windDir(windDeg)}`;
+    document.getElementById('statWindBadge').textContent = 'picco giornata';
+
+    const uvInfo = uvLabel(uv);
+    document.getElementById('statUV').textContent = uv;
+    document.getElementById('uvBarFill').style.width = Math.min(100, uv * 9) + '%';
+    document.getElementById('uvBarFill').style.background = uvInfo.color;
+    document.getElementById('statUVLabel').textContent = uvInfo.text;
+    document.getElementById('statUVBadge').textContent = 'picco giornata';
+
+    document.getElementById('statHum').textContent = hum;
+    document.getElementById('statHumLabel').textContent = humLabel(hum);
+    document.getElementById('statHumBadge').textContent = 'media giornata';
+  }
+}
+
+function switchChart(metric, btn) {
+  currentMetric = metric;
+  document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = weatherCache[currentLoc];
+  if (d) renderChart(d, currentDay, metric);
+}
+
+function renderChart(d, dayIdx, metric) {
+  const indices = getHourIndicesForDay(d, dayIdx);
+  const labels = indices.map(i => d.hourly.time[i].split('T')[1].slice(0,5));
+
+  const isToday = dayIdx === 0;
+  const nowHour = isToday ? getCurrentHourIndex(d) : null;
+
+  let data, color, label, unit, yLabel;
+  switch(metric) {
+    case 'temp':
+      data = indices.map(i => d.hourly.temperature_2m[i]);
+      color = '#4f9cf9'; label = 'Temperatura'; unit = '°C'; yLabel = v => v + '°';
+      break;
+    case 'rain':
+      data = indices.map(i => d.hourly.precipitation[i] || 0);
+      color = '#60a5fa'; label = 'Precipitazioni'; unit = 'mm'; yLabel = v => v + 'mm';
+      break;
+    case 'wind':
+      data = indices.map(i => d.hourly.windspeed_10m[i]);
+      color = '#a78bfa'; label = 'Vento'; unit = 'km/h'; yLabel = v => v + '';
+      break;
+    case 'uv':
+      data = indices.map(i => d.hourly.uv_index[i]);
+      color = '#fb923c'; label = 'Indice UV'; unit = ''; yLabel = v => v + '';
+      break;
+  }
+
+  const isToday2 = dayIdx === 0;
+  const dayStr = isToday2 ? 'Oggi' : dayLabel(d.daily.time[dayIdx], dayIdx);
+  document.getElementById('chartLabel').textContent = `${dayStr} — ${label} ora per ora`;
+
+  const ctx = document.getElementById('hourlyChart').getContext('2d');
+  const cw = Math.max(window.innerWidth - 32, labels.length * 28);
+  document.getElementById('hourlyChart').width = cw;
+
+  // Segna l'ora corrente se siamo su oggi
+  const annotations = {};
+  if (nowHour !== null) {
+    const nowLabelIdx = indices.indexOf(nowHour);
+    if (nowLabelIdx >= 0) {
+      annotations.nowLine = {
+        type: 'line', xMin: nowLabelIdx, xMax: nowLabelIdx,
+        borderColor: 'rgba(79,156,249,0.5)', borderWidth: 1, borderDash: [4,3]
+      };
+    }
+  }
+
+  if (hourlyChart) hourlyChart.destroy();
+
+  const isBar = metric === 'rain';
+  hourlyChart = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [{
+        type: isBar ? 'bar' : 'line',
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: isBar ? color + '55' : color + '15',
+        borderWidth: isBar ? 0 : 2,
+        borderRadius: isBar ? 3 : 0,
+        pointRadius: isBar ? 0 : 2,
+        pointHoverRadius: 5,
+        fill: !isBar,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a2235',
+          borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1,
+          titleColor: '#6b7fa3', bodyColor: '#f0f4ff',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'DM Sans', size: 12 },
+          callbacks: {
+            label: ctx => `${Math.round(ctx.parsed.y * 10) / 10} ${unit}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#6b7fa3', font: { family: 'DM Mono', size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          min: metric === 'uv' || metric === 'rain' ? 0 : undefined,
+          ticks: { color, font: { family: 'DM Mono', size: 10 }, callback: yLabel }
+        }
+      }
+    }
+  });
+}
+
+function buildLocationTabs() {
+  const container = document.getElementById('locTabs');
+  LOCATIONS.forEach((loc, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'loc-tab' + (i === 0 ? ' active' : '');
+    btn.textContent = loc.name;
+    btn.onclick = () => {
+      currentLoc = i;
+      currentDay = 0;
+      document.querySelectorAll('.loc-tab').forEach((b,j) => b.classList.toggle('active', j===i));
+      loadLocation(i);
+    };
+    container.appendChild(btn);
+  });
+}
+
+function showLoading(v) { document.getElementById('loadingOverlay').classList.toggle('hide', !v); }
+function showError() { document.getElementById('errorMsg').classList.add('show'); }
+function hideError() { document.getElementById('errorMsg').classList.remove('show'); }
+function refreshAll() { weatherCache = {}; loadLocation(currentLoc); }
+
+setInterval(() => { weatherCache = {}; loadLocation(currentLoc); }, 30 * 60 * 1000);
+
+buildLocationTabs();
+loadLocation(0);
+</script>
+</body>
+</html>
