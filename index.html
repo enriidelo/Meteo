@@ -374,22 +374,33 @@ function initSetup() {
 
   const labels = ['Prima città', 'Seconda città', 'Terza città', 'Quarta città'];
   for (let i = 0; i < 4; i++) {
-    container.innerHTML += `
-      <div>
-        <div class="slot-label">${labels[i]}</div>
-        <div class="slot-input-wrap" id="wrap${i}">
-          <input class="slot-input" id="input${i}" placeholder="Es. Milano, Roma, Napoli…"
-            oninput="onSearchInput(${i})" autocomplete="off" autocorrect="off" spellcheck="false">
-          <div class="autocomplete-list" id="ac${i}"></div>
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="slot-label">${labels[i]}</div>
+      <div class="slot-input-wrap" id="wrap${i}">
+        <input class="slot-input" id="input${i}" placeholder="Es. Milano, Roma, Napoli…"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+        <div class="autocomplete-list" id="ac${i}"></div>
+      </div>
+      <div class="slot-selected" id="selected${i}">
+        <div>
+          <div class="slot-selected-name" id="selName${i}"></div>
+          <div class="slot-selected-coords" id="selCoords${i}"></div>
         </div>
-        <div class="slot-selected" id="selected${i}">
-          <div>
-            <div class="slot-selected-name" id="selName${i}"></div>
-            <div class="slot-selected-coords" id="selCoords${i}"></div>
-          </div>
-          <button class="slot-edit-btn" onclick="editSlot(${i})">Cambia</button>
-        </div>
+        <button class="slot-edit-btn" onclick="editSlot(${i})">Cambia</button>
       </div>`;
+    container.appendChild(div);
+
+    // Aggiunge listener DOPO che il DOM è pronto
+    const input = div.querySelector(`#input${i}`);
+    input.addEventListener('input', () => onSearchInput(i));
+    // Nasconde la lista solo dopo un ritardo, così touchstart ha tempo di registrarsi
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        const ac = document.getElementById(`ac${i}`);
+        if (ac) { ac.classList.remove('show'); ac.innerHTML = ''; }
+      }, 300);
+    });
   }
 }
 
@@ -424,10 +435,10 @@ async function onSearchInput(i) {
           e.preventDefault();
           selectCity(i, r.name, r.latitude, r.longitude, region);
         });
-        item.addEventListener('touchend', (e) => {
+        item.addEventListener('touchstart', (e) => {
           e.preventDefault();
           selectCity(i, r.name, r.latitude, r.longitude, region);
-        });
+        }, { passive: false });
         ac.appendChild(item);
       });
     } catch(e) {
