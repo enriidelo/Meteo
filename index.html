@@ -414,13 +414,22 @@ async function onSearchInput(i) {
         return;
       }
 
-      ac.innerHTML = data.results.map((r, idx) => {
+      ac.innerHTML = '';
+      data.results.forEach((r) => {
         const region = [r.admin1, r.country].filter(Boolean).join(', ');
-        return `<div class="autocomplete-item" onclick="selectCity(${i}, ${JSON.stringify(r.name)}, ${r.latitude}, ${r.longitude}, ${JSON.stringify(region)})">
-          <span class="ac-name">${r.name}</span>
-          <span class="ac-region">${region}</span>
-        </div>`;
-      }).join('');
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML = `<span class="ac-name">${r.name}</span><span class="ac-region">${region}</span>`;
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          selectCity(i, r.name, r.latitude, r.longitude, region);
+        });
+        item.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          selectCity(i, r.name, r.latitude, r.longitude, region);
+        });
+        ac.appendChild(item);
+      });
     } catch(e) {
       ac.innerHTML = '<div class="ac-loading">Errore di rete</div>';
     }
