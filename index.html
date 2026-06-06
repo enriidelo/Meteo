@@ -205,16 +205,42 @@
   .uv-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
   .uv-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
 
-  .chart-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-  .chart-tab {
-    padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);
-    background: transparent; color: var(--muted);
-    font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.2s;
+  /* HOURLY CARDS */
+  .hourly-cards { display: flex; flex-direction: column; gap: 8px; }
+  .hour-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 14px;
+    display: grid; grid-template-columns: 52px 1fr 1fr 1fr 1fr;
+    align-items: center; gap: 8px;
+    transition: border-color 0.2s;
   }
-  .chart-tab.active { border-color: var(--accent); color: var(--accent2); background: rgba(79,156,249,0.1); }
-
-  .chart-wrap { overflow-x: auto; scrollbar-width: none; }
-  .chart-wrap::-webkit-scrollbar { display: none; }
+  .hour-card.now {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+  .hour-time {
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    color: var(--muted); font-weight: 400;
+  }
+  .hour-card.now .hour-time { color: var(--accent2); font-weight: 500; }
+  .now-dot {
+    display: inline-block; width: 6px; height: 6px;
+    background: var(--accent); border-radius: 50;
+    margin-right: 4px; vertical-align: middle;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+  .hour-stat {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .hour-stat-val {
+    font-size: 14px; font-weight: 500; line-height: 1;
+  }
+  .hour-stat-unit {
+    font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace;
+  }
 
   .footer { text-align: center; padding: 12px 16px 28px; color: var(--muted); font-size: 11px; }
 
@@ -323,22 +349,13 @@
 
     <div>
       <div class="section-label" id="chartLabel">Andamento orario</div>
-      <div class="chart-tabs">
-        <button class="chart-tab active" onclick="switchChart('temp',this)">🌡️ Temp</button>
-        <button class="chart-tab" onclick="switchChart('rain',this)">🌧️ Pioggia</button>
-        <button class="chart-tab" onclick="switchChart('wind',this)">💨 Vento</button>
-        <button class="chart-tab" onclick="switchChart('uv',this)">☀️ UV</button>
-      </div>
-      <div class="chart-wrap">
-        <canvas id="hourlyChart" height="150"></canvas>
-      </div>
+      <div class="hourly-cards" id="hourlyCards"></div>
     </div>
 
     <div class="footer">Dati: Open-Meteo · Aggiornamento ogni 30 min</div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // ─── COSTANTI ───────────────────────────────────────────────
 const WMO = {
@@ -360,9 +377,7 @@ const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO
 let LOCATIONS = [];
 let currentLoc = 0;
 let currentDay = 0;
-let currentMetric = 'temp';
 let weatherCache = {};
-let hourlyChart = null;
 let searchTimers = {};
 let slotData = [null, null, null, null]; // città selezionate nel setup
 
@@ -562,7 +577,7 @@ function renderAll(locIdx) {
   renderDayTabs(d);
   renderHero(locIdx, d, currentDay);
   renderStats(d, currentDay);
-  renderChart(d, currentDay, currentMetric);
+  renderHourlyCards(d, currentDay);
 }
 
 function renderDayTabs(d) {
@@ -661,72 +676,67 @@ function renderStats(d, dayIdx) {
   }
 }
 
-function switchChart(metric, btn) {
-  currentMetric = metric;
-  document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const d = weatherCache[currentLoc];
-  if (d) renderChart(d, currentDay, metric);
-}
-
-function renderChart(d, dayIdx, metric) {
+function renderHourlyCards(d, dayIdx) {
   const indices = getHourIndicesForDay(d, dayIdx);
-  const labels = indices.map(i => d.hourly.time[i].split('T')[1].slice(0,5));
-  let data, color, label, unit, yLabel;
-  switch(metric) {
-    case 'temp': data=indices.map(i=>d.hourly.temperature_2m[i]); color='#4f9cf9'; label='Temperatura'; unit='°C'; yLabel=v=>v+'°'; break;
-    case 'rain': data=indices.map(i=>d.hourly.precipitation[i]||0); color='#60a5fa'; label='Precipitazioni'; unit='mm'; yLabel=v=>v+'mm'; break;
-    case 'wind': data=indices.map(i=>d.hourly.windspeed_10m[i]); color='#a78bfa'; label='Vento'; unit='km/h'; yLabel=v=>v+''; break;
-    case 'uv':   data=indices.map(i=>d.hourly.uv_index[i]); color='#fb923c'; label='UV'; unit=''; yLabel=v=>v+''; break;
-  }
-  const dayStr = dayIdx===0 ? 'Oggi' : dayLabel(d.daily.time[dayIdx], dayIdx);
-  document.getElementById('chartLabel').textContent = `${dayStr} — ${label} ora per ora`;
-  const ctx = document.getElementById('hourlyChart').getContext('2d');
-  const cw = Math.max(window.innerWidth - 32, labels.length * 28);
-  document.getElementById('hourlyChart').width = cw;
-  if (hourlyChart) hourlyChart.destroy();
-  const isBar = metric === 'rain';
-  // Indice ora corrente nel grafico (solo oggi)
   const nowHourGlobalIdx = dayIdx === 0 ? getCurrentHourIndex(d) : null;
-  const nowLocalIdx = nowHourGlobalIdx !== null ? indices.indexOf(nowHourGlobalIdx) : -1;
+  const container = document.getElementById('hourlyCards');
+  const dayStr = dayIdx === 0 ? 'Oggi' : dayLabel(d.daily.time[dayIdx], dayIdx);
+  document.getElementById('chartLabel').textContent = `${dayStr} — ora per ora`;
 
-  hourlyChart = new Chart(ctx, {
-    data: { labels, datasets: [{
-      type: isBar?'bar':'line', label, data,
-      borderColor: color, backgroundColor: isBar ? color+'55' : color+'15',
-      borderWidth: isBar?0:2, borderRadius: isBar?3:0,
-      pointRadius: isBar?0:2, pointHoverRadius:5,
-      fill: !isBar, tension: 0.4
-    }]},
-    options: {
-      responsive: false,
-      interaction: { mode:'index', intersect:false },
-      plugins: {
-        legend: { display:false },
-        tooltip: {
-          backgroundColor:'#1a2235', borderColor:'rgba(255,255,255,0.08)', borderWidth:1,
-          titleColor:'#6b7fa3', bodyColor:'#f0f4ff',
-          titleFont:{family:'DM Mono',size:11}, bodyFont:{family:'DM Sans',size:12},
-          callbacks: { label: ctx=>`${Math.round(ctx.parsed.y*10)/10} ${unit}` }
-        }
-      },
-      scales: {
-        x: { grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#6b7fa3',font:{family:'DM Mono',size:10},maxRotation:0,autoSkip:true,maxTicksLimit:8} },
-        y: { grid:{color:'rgba(255,255,255,0.04)'}, min: (metric==='uv'||metric==='rain')?0:undefined, ticks:{color,font:{family:'DM Mono',size:10},callback:yLabel} }
-      }
-    }
+  container.innerHTML = '';
+
+  // Header colonne
+  const header = document.createElement('div');
+  header.style.cssText = 'display:grid;grid-template-columns:52px 1fr 1fr 1fr 1fr;gap:8px;padding:0 14px;margin-bottom:2px;';
+  header.innerHTML = `
+    <div></div>
+    <div style="text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">🌡️<br>Temp</div>
+    <div style="text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">🌧️<br>Pioggia</div>
+    <div style="text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">💨<br>Vento</div>
+    <div style="text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">☀️<br>UV</div>`;
+  container.appendChild(header);
+
+  let nowCard = null;
+
+  indices.forEach(i => {
+    const isNow = i === nowHourGlobalIdx;
+    const time = d.hourly.time[i].split('T')[1].slice(0,5);
+    const temp = Math.round(d.hourly.temperature_2m[i]);
+    const rain = (d.hourly.precipitation[i] || 0).toFixed(1);
+    const wind = Math.round(d.hourly.windspeed_10m[i]);
+    const uv = Math.round(d.hourly.uv_index[i]);
+    const uvInfo = uvLabel(uv);
+
+    const card = document.createElement('div');
+    card.className = 'hour-card' + (isNow ? ' now' : '');
+    card.innerHTML = `
+      <div class="hour-time">${isNow ? '<span class="now-dot"></span>' : ''}${time}</div>
+      <div class="hour-stat">
+        <span class="hour-stat-val" style="color:#4f9cf9">${temp}°</span>
+        <span class="hour-stat-unit">°C</span>
+      </div>
+      <div class="hour-stat">
+        <span class="hour-stat-val" style="color:#60a5fa">${rain}</span>
+        <span class="hour-stat-unit">mm</span>
+      </div>
+      <div class="hour-stat">
+        <span class="hour-stat-val" style="color:#a78bfa">${wind}</span>
+        <span class="hour-stat-unit">km/h</span>
+      </div>
+      <div class="hour-stat">
+        <span class="hour-stat-val" style="color:${uvInfo.color}">${uv}</span>
+        <span class="hour-stat-unit">${uvInfo.text}</span>
+      </div>`;
+
+    container.appendChild(card);
+    if (isNow) nowCard = card;
   });
 
-  // Scrolla automaticamente all'ora corrente (3 ore di contesto a sinistra)
-  const chartWrap = document.querySelector('.chart-wrap');
-  if (dayIdx === 0 && nowLocalIdx > 0) {
+  // Scrolla all'ora corrente
+  if (nowCard) {
     requestAnimationFrame(() => {
-      const pixelsPerHour = cw / labels.length;
-      const scrollTo = Math.max(0, (nowLocalIdx - 3) * pixelsPerHour);
-      chartWrap.scrollLeft = scrollTo;
+      nowCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
-  } else {
-    chartWrap.scrollLeft = 0;
   }
 }
 
