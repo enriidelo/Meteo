@@ -686,6 +686,10 @@ function renderChart(d, dayIdx, metric) {
   document.getElementById('hourlyChart').width = cw;
   if (hourlyChart) hourlyChart.destroy();
   const isBar = metric === 'rain';
+  // Indice ora corrente nel grafico (solo oggi)
+  const nowHourGlobalIdx = dayIdx === 0 ? getCurrentHourIndex(d) : null;
+  const nowLocalIdx = nowHourGlobalIdx !== null ? indices.indexOf(nowHourGlobalIdx) : -1;
+
   hourlyChart = new Chart(ctx, {
     data: { labels, datasets: [{
       type: isBar?'bar':'line', label, data,
@@ -712,6 +716,18 @@ function renderChart(d, dayIdx, metric) {
       }
     }
   });
+
+  // Scrolla automaticamente all'ora corrente (3 ore di contesto a sinistra)
+  const chartWrap = document.querySelector('.chart-wrap');
+  if (dayIdx === 0 && nowLocalIdx > 0) {
+    requestAnimationFrame(() => {
+      const pixelsPerHour = cw / labels.length;
+      const scrollTo = Math.max(0, (nowLocalIdx - 3) * pixelsPerHour);
+      chartWrap.scrollLeft = scrollTo;
+    });
+  } else {
+    chartWrap.scrollLeft = 0;
+  }
 }
 
 // ─── UTILS ──────────────────────────────────────────────────
